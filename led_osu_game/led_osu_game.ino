@@ -2,10 +2,22 @@
 #include "furelise.h"
 #include "harry_p.h"
 #include "tetris.h"
+// include song libraries
+
+#include <SoftPWM.h>
+//include analog -> PWM converter
+
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+// lcd inclusions
+
 
 // change this to whichever pin you want to use
 int buzzer = A5;
-int change_song = A4;
+
+
 // change this to make the song slower or faster
 int christmas_tempo = 160;
 int furelise_tempo = 80;
@@ -13,8 +25,6 @@ int harry_p_tempo = 144;
 int tetris_tempo = 144;
 
 int tempo = christmas_tempo;
-
-
 
 
 // sizeof gives the number of bytes, each int value is composed of two bytes (16 bits)
@@ -31,11 +41,14 @@ int divider = 0, noteDuration = 0;
 const int ledGrid[3][3] = {
   {7, 10, 13},  // Top Row (Left, Center, Right)
   {6,  9, 12},  // Middle Row (Left, Center, Right)
-  {5,  8, 11}   // Bottom Row (Left, Center, Right)
+  {5,  8, 11},  
+  {14, 15, 16}   // Bottom Row (Left, Center, Right)
 };
 
 // Buttons: index 0 = Left column, 1 = Center column, 2 = Right column
-const int buttonList[] = {2, 3, 4};
+// const int buttonList[] = {2, 3, 4};
+const int joystick_x = 2;
+const int joystick_switch = 3;
 
 // Game Timing Configuration
 const int bpm = 160;
@@ -74,8 +87,17 @@ int misses = 0;
 int wrongPresses = 0;
 
 void setup() {
+  // initialize serial monitor
   Serial.begin(9600);
 
+  // intialize lcd 
+  lcd.init();                     
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+
+  // Initialize the SoftPWM library
+  SoftPWMInitialize();
+  
   // Set all 9 mapped pins as OUTPUT and turn them off initially
   for (int row = 0; row < 3; row++) {
     for (int col = 0; col < 3; col++) {
@@ -83,16 +105,19 @@ void setup() {
       digitalWrite(ledGrid[row][col], LOW);
     }
   }
-
-  // Buttons wired to GND, using internal pullups
-  for (int i = 0; i < 3; i++) {
-    pinMode(buttonList[i], INPUT_PULLUP);
+  for (int col = 0; col < 3; col++) {
+    SoftPWMSetFadeTime(ledGrid[3][col], 0, 0);
+    SoftPWMSet(ledGrid[3][col], 0);
   }
+  // Buttons wired to GND, using internal pullups
+  // for (int i = 0; i < 3; i++) {
+  //   pinMode(buttonList[i], INPUT_PULLUP);
+  // }
   pinMode(change_song, INPUT_PULLUP);
   playSong();
 
   // Song's over - print final score
-  for (int row = 0; row < 3; row++) {
+  for (int row = 0; row < 4; row++) {
     for (int col = 0; col < 3; col++) {
       digitalWrite(ledGrid[row][col], HIGH);
   Serial.println("=== Song complete ===");
@@ -100,6 +125,21 @@ void setup() {
   Serial.print("Hits: "); Serial.println(hits);
   Serial.print("Misses: "); Serial.println(misses);
   Serial.print("Wrong presses: "); Serial.println(wrongPresses);
+
+  lcd.print("=== Song complete ===");
+  delay(1000);
+  lcd.clear();
+  lcd.print("Score: "); lcd.print(score);
+  delay(1000);
+  lcd.clear();
+  lcd.print("Hits: "); lcd.print(hits);
+  lcd.print("Misses: "); lcd.print(misses);
+  lcd.setCursor(1, 0);
+  lcd.print("Wrong presses: "); lcd.println(wrongPresses);
+  delay(1000);
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Click joystick to play again!");
 }
   }
 }
@@ -225,7 +265,7 @@ void advanceGameClock() {
 
 // Directly writes state to all 9 individual pins
 void refreshDisplay() {
-  for (int row = 0; row < 3; row++) {
+  for (int row = 0; row < 4; row++) {
     for (int col = 0; col < 3; col++) {
       if (matrix[row][col] == 1) {
         digitalWrite(ledGrid[row][col], HIGH); // Turn LED On
